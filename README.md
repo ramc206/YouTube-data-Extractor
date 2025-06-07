@@ -1,1 +1,181 @@
-# YouTube-data-Extractor
+<div class="video-extractor" style="max-width: 800px; margin: auto; padding: 20px; background: #fff; box-shadow: 0 2px 15px rgba(0,0,0,0.1); border-radius: 10px;">
+    <h2 style="color: #ff0000; text-align: center; margin-bottom: 25px;">YouTube Video Metadata Extractor</h2>
+    <div style="margin-bottom: 20px;">
+        <input id="videoUrl" style="width: 100%; padding: 12px; border: 2px solid #ff0000; border-radius: 5px;" type="text" placeholder="Enter YouTube Video URL (e.g., https://youtube.com/watch?v=dQw4w9WgXcQ)" />
+        <button onclick="fetchVideoData()" style="background: #ff0000; color: #fff; padding: 12px 24px; border: none; border-radius: 5px; margin-top: 15px; width: 100%; cursor: pointer; font-weight: bold;">Extract Metadata</button>
+    </div>
+    <div id="loader" style="display: none; text-align: center; padding: 20px;">
+        <div style="border: 4px solid #f3f3f3; border-top: 4px solid #ff0000; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+    </div>
+    <div id="results" style="display: none;">
+        <div class="result-section">
+            <h3 style="color: #333; margin-bottom: 10px;">Video Title:</h3>
+            <div id="videoTitle" style="font-size: 1.2rem; margin-bottom: 20px;"></div>
+            <h3 style="color: #333; margin-bottom: 10px;">Description:</h3>
+            <div id="videoDescription" style="background: #f8f8f8; padding: 15px; border-radius: 5px; line-height: 1.6; white-space: pre-wrap;"></div>
+        </div>
+        <div class="result-section" style="margin-top: 25px;">
+            <h3 style="color: #333; margin-bottom: 10px;">Video Tags:</h3>
+            <div id="videoTags" style="background: #f8f8f8; padding: 15px; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 8px;"></div>
+        </div>
+    </div>
+    <div id="error" style="color: #ff0000; padding: 15px; display: none; background: #fff0f0; border-radius: 5px; margin-top: 15px;"></div>
+</div>
+
+<script>
+const API_KEY = 'AIzaSyCPXkMd-jSMjU7TsYRCcQeG1X6xavg4tBA';
+
+async function fetchVideoData() {
+    const url = document.getElementById('videoUrl').value.trim();
+    const loader = document.getElementById('loader');
+    const results = document.getElementById('results');
+    const error = document.getElementById('error');
+
+    // Reset UI
+    error.style.display = 'none';
+    results.style.display = 'none';
+    loader.style.display = 'block';
+
+    try {
+        // Validate input
+        if (!url) {
+            throw new Error('Please enter a YouTube video URL');
+        }
+
+        // Extract video ID
+        const videoId = extractVideoId(url);
+        if (!videoId || videoId.length !== 11) {
+            throw new Error('Invalid YouTube video URL. Please check the format.');
+        }
+
+        // Fetch video data
+        const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${API_KEY}`);
+        
+        if (!response.ok) {
+            throw new Error('YouTube API request failed. Status: ' + response.status);
+        }
+
+        const data = await response.json();
+        
+        if (!data?.items?.length) {
+            throw new Error('Video not found. It may be private or deleted.');
+        }
+
+        // Display results
+        displayResults(data.items[0]);
+        
+    } catch (err) {
+        showError(err.message);
+    } finally {
+        loader.style.display = 'none';
+    }
+}
+
+function extractVideoId(url) {
+    // Remove any URL fragments or parameters after the video ID
+    const cleanUrl = url.split(/[&#]/)[0];
+    
+    const patterns = [
+        /[?&]v=([a-zA-Z0-9_-]{11})/,       // Standard URL format
+        /youtu\.be\/([a-zA-Z0-9_-]{11})/,   // Short URL format
+        /embed\/([a-zA-Z0-9_-]{11})/,        // Embed URL format
+        /\/shorts\/([a-zA-Z0-9_-]{11})/     // Shorts URL format
+    ];
+
+    for (const pattern of patterns) {
+        const match = cleanUrl.match(pattern);
+        if (match && match[1]) {
+            return match[1];
+        }
+    }
+    
+    return null;
+}
+
+function displayResults(videoData) {
+    const snippet = videoData.snippet || {};
+    
+    // Display title
+    document.getElementById('videoTitle').textContent = snippet.title || 'No title available';
+    
+    // Display description with preserved line breaks
+    const description = snippet.description || 'No description available';
+    document.getElementById('videoDescription').textContent = description;
+    
+    // Display tags
+    const tagsContainer = document.getElementById('videoTags');
+    tagsContainer.innerHTML = '';
+    
+    if (snippet.tags?.length > 0) {
+        snippet.tags.forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.textContent = tag;
+            tagElement.style.backgroundColor = '#ff0000';
+            tagElement.style.color = '#fff';
+            tagElement.style.padding = '6px 12px';
+            tagElement.style.borderRadius = '20px';
+            tagElement.style.fontSize = '14px';
+            tagElement.style.display = 'inline-block';
+            tagElement.style.margin = '2px';
+            tagsContainer.appendChild(tagElement);
+        });
+    } else {
+        tagsContainer.textContent = 'No tags found for this video';
+        tagsContainer.style.padding = '10px';
+    }
+    
+    document.getElementById('results').style.display = 'block';
+}
+
+function showError(message) {
+    const error = document.getElementById('error');
+    error.innerHTML = `
+        <strong>Error:</strong> ${message}<br><br>
+        <div style="font-size: 14px;">
+            <strong>Valid URL formats:</strong>
+            <ul style="margin-top: 5px; padding-left: 20px;">
+                <li>https://www.youtube.com/watch?v=dQw4w9WgXcQ</li>
+                <li>https://youtu.be/dQw4w9WgXcQ</li>
+                <li>https://www.youtube.com/embed/dQw4w9WgXcQ</li>
+                <li>https://www.youtube.com/shorts/dQw4w9WgXcQ</li>
+            </ul>
+            <p style="margin-top: 10px;">Note: The video must be public and not age-restricted.</p>
+        </div>
+    `;
+    error.style.display = 'block';
+}
+</script>
+
+<style>
+.video-extractor {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.result-section {
+    margin-bottom: 25px;
+}
+
+@media (max-width: 600px) {
+    .video-extractor {
+        padding: 15px;
+    }
+    
+    h2 {
+        font-size: 1.4rem;
+    }
+    
+    h3 {
+        font-size: 1.1rem;
+    }
+    
+    #videoTags span {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+}
+</style>
